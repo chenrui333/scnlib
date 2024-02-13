@@ -2,32 +2,30 @@
 name: Checks
 
 on:
-  #push:
-  #  branches:
-  #    - master
-  #  paths-ignore:
-  #    - '**.md'
-  #    - '**/docs/**'
-  #pull_request:
-  #  branches:
-  #    - master
-  #  paths-ignore:
-  #    - '**.md'
-  #    - '**/docs/**'
+  push:
+    paths:
+      - '.github/**'
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+  pull_request:
+    paths:
+      - '.github/**'
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
   workflow_dispatch:
 
 jobs:
-  clang-tidy:
-    runs-on: ubuntu-22.04
-
-    strategy:
-      fail-fast: false
-      matrix:
-        std: [ 17, 20 ]
+  clang-format:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Clang-Tidy
-        run: |
-        #clang-tidy-14 tests/clang-tidy/main.cpp -warnings-as-errors=* -header-filter=.* -extra-arg=-std=c++${{ matrix.std }} --
+      - name: Run clang-format
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          check-path: '.'
+          clang-format-version: '17'
+          exclude-regex: '.*\/external\/.*'
