@@ -59,7 +59,7 @@ TEST(AlignAndFillTest, CustomWidthChar)
     EXPECT_STREQ(r->begin(), "     ");
 }
 
-TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndNoWidth)
+TEST(AlignAndFillTest, RightAlignWithCustomFillAndNoWidth)
 {
     auto r = scn::scan<int>("***42", "{:*>}");
     ASSERT_TRUE(r);
@@ -67,7 +67,7 @@ TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndNoWidth)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndFullWidth)
+TEST(AlignAndFillTest, RightAlignWithCustomFillAndFullWidth)
 {
     auto r = scn::scan<int>("***42", "{:*>5}");
     ASSERT_TRUE(r);
@@ -75,7 +75,7 @@ TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndFullWidth)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndLesserWidth)
+TEST(AlignAndFillTest, RightAlignWithCustomFillAndLesserWidth)
 {
     auto r = scn::scan<int>("***42", "{:*>4}");
     ASSERT_TRUE(r);
@@ -83,7 +83,7 @@ TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndLesserWidth)
     EXPECT_STREQ(r->begin(), "2");
 }
 
-TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndNoWidthButNoFillInInput)
+TEST(AlignAndFillTest, RightAlignWithCustomFillAndNoWidthButNoFillInInput)
 {
     auto r = scn::scan<int>("42", "{:*>}");
     ASSERT_TRUE(r);
@@ -91,13 +91,15 @@ TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndNoWidthButNoFillInInp
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_RightAlignWithCustomFillAndGreaterWidth)
+TEST(AlignAndFillTest, RightAlignWithCustomFillAndGreaterWidth)
 {
     auto r = scn::scan<int>("42", "{:*>5}");
-    ASSERT_FALSE(r);
+    ASSERT_TRUE(r);
+    EXPECT_EQ(r->value(), 42);
+    EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndNoWidth)
+TEST(AlignAndFillTest, LeftAlignWithCustomFillAndNoWidth)
 {
     auto r = scn::scan<int>("42***", "{:*<}");
     ASSERT_TRUE(r);
@@ -105,7 +107,7 @@ TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndNoWidth)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndFullWidth)
+TEST(AlignAndFillTest, LeftAlignWithCustomFillAndFullWidth)
 {
     auto r = scn::scan<int>("42***", "{:*<5}");
     ASSERT_TRUE(r);
@@ -113,15 +115,15 @@ TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndFullWidth)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndLesserWidth)
+TEST(AlignAndFillTest, LeftAlignWithCustomFillAndLesserWidth)
 {
     auto r = scn::scan<int>("42***", "{:*<4}");
     ASSERT_TRUE(r);
-    EXPECT_EQ(r->value(), 4);
-    EXPECT_STREQ(r->begin(), "2");
+    EXPECT_EQ(r->value(), 42);
+    EXPECT_STREQ(r->begin(), "*");
 }
 
-TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndNoWidthButNoFillInInput)
+TEST(AlignAndFillTest, LeftAlignWithCustomFillAndNoWidthButNoFillInInput)
 {
     auto r = scn::scan<int>("42", "{:*<}");
     ASSERT_TRUE(r);
@@ -129,13 +131,15 @@ TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndNoWidthButNoFillInInpu
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_LeftAlignWithCustomFillAndGreaterWidth)
+TEST(AlignAndFillTest, LeftAlignWithCustomFillAndGreaterWidth)
 {
     auto r = scn::scan<int>("42", "{:*<5}");
-    ASSERT_FALSE(r);
+    ASSERT_TRUE(r);
+    EXPECT_EQ(r->value(), 42);
+    EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_CenterAlignWithNoFillInInput)
+TEST(AlignAndFillTest, CenterAlignWithNoFillInInput)
 {
     auto r = scn::scan<int>("42", "{:*^}");
     ASSERT_TRUE(r);
@@ -143,7 +147,7 @@ TEST(AlignAndFillTest, DISABLED_CenterAlignWithNoFillInInput)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_CenterAlignWithCorrectFillInInput)
+TEST(AlignAndFillTest, CenterAlignWithCorrectFillInInput)
 {
     auto r = scn::scan<int>("*42*", "{:*^}");
     ASSERT_TRUE(r);
@@ -151,21 +155,29 @@ TEST(AlignAndFillTest, DISABLED_CenterAlignWithCorrectFillInInput)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_CenterAlignWithMoreFillAtEndOfInput)
+TEST(AlignAndFillTest, CenterAlignWithMoreFillAtEndOfInput)
 {
     auto r = scn::scan<int>("*42**", "{:*^}");
     ASSERT_TRUE(r);
     EXPECT_EQ(r->value(), 42);
-    EXPECT_STREQ(r->begin(), "*");
+    EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_CenterAlignWithLessFillAtEndOfInput)
+TEST(AlignAndFillTest, CenterAlignWithLotsMoreFillAtEndOfInput)
+{
+    auto r = scn::scan<int>("*42****", "{:*^}");
+    ASSERT_TRUE(r);
+    EXPECT_EQ(r->value(), 42);
+    EXPECT_STREQ(r->begin(), "**");
+}
+
+TEST(AlignAndFillTest, CenterAlignWithLessFillAtEndOfInput)
 {
     auto r = scn::scan<int>("**42*", "{:*^}");
     ASSERT_FALSE(r);
 }
 
-TEST(AlignAndFillTest, DISABLED_CenterAlignWithCustomEvenWidth)
+TEST(AlignAndFillTest, CenterAlignWithCustomEvenWidth)
 {
     auto r = scn::scan<int>("**42**", "{:*^6}");
     ASSERT_TRUE(r);
@@ -173,7 +185,7 @@ TEST(AlignAndFillTest, DISABLED_CenterAlignWithCustomEvenWidth)
     EXPECT_STREQ(r->begin(), "");
 }
 
-TEST(AlignAndFillTest, DISABLED_CenterAlignWithCustomOddWidth)
+TEST(AlignAndFillTest, CenterAlignWithCustomOddWidth)
 {
     auto r = scn::scan<int>("*42**", "{:*^5}");
     ASSERT_TRUE(r);

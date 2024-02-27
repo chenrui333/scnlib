@@ -51,6 +51,180 @@ eof_expected<simple_borrowed_iterator_t<Range>> skip_ws_before_if_required(
     return skip_classic_whitespace(SCN_FWD(range));
 }
 
+template <typename Iterator>
+struct skip_fill_result {
+    Iterator iterator;
+    int skipped_width;
+};
+
+template <typename Range>
+scan_expected<skip_fill_result<simple_borrowed_iterator_t<Range>>>
+skip_fill_impl(Range&& range,
+               int spec_width,
+               int rem_width,
+               const detail::fill_type& fill,
+               bool need_skipped_width)
+{
+    SCN_EXPECT(ranges::begin(range) != ranges::end(range));
+
+    using char_type = detail::char_t<Range>;
+    using result_type = skip_fill_result<simple_borrowed_iterator_t<Range>>;
+
+    if (spec_width == 0 && rem_width == 0) {
+        if (fill.size() <= sizeof(char_type)) {
+            const auto fill_ch = fill.template get_code_unit<char_type>();
+            const auto pred = [=](char_type ch) { return ch == fill_ch; };
+            auto it = read_while_code_unit(range, pred);
+            if (need_skipped_width) {
+                const auto fill_ch_width = static_cast<int>(
+                    calculate_text_width(static_cast<char32_t>(fill_ch)));
+                return result_type{it, static_cast<int>(ranges::distance(
+                                           ranges::begin(range), it)) /
+                                           fill_ch_width};
+            }
+            return result_type{it, 0};
+        }
+
+        const auto fill_chars = fill.template get_code_units<char_type>();
+        auto it = read_while_code_units(range, fill_chars);
+        if (need_skipped_width) {
+            const auto fill_ch_width =
+                static_cast<int>(calculate_text_width(fill_chars));
+            return result_type{it, static_cast<int>(ranges::distance(
+                                       ranges::begin(range), it)) /
+                                       fill_ch_width};
+        }
+        return result_type{it, 0};
+    }
+
+    SCN_UNUSED(need_skipped_width);
+    const int rem_width_start = rem_width;
+    if (fill.size() <= sizeof(char_type)) {
+        const auto fill_ch = fill.template get_code_unit<char_type>();
+        const auto fill_width =
+            calculate_valid_text_width(static_cast<char32_t>(fill_ch));
+        auto it = ranges::begin(range);
+        while (it != ranges::end(range)) {
+            if (*it != fill_ch) {
+                return result_type{it, rem_width_start - rem_width};
+            }
+
+            it = read_code_point(ranges::subrange{it, ranges::end(range)});
+            rem_width -= fill_width;
+
+            if (rem_width <= 0) {
+                break;
+            }
+        }
+        return result_type{it, rem_width_start - rem_width};
+    }
+
+    const auto fill_chars = fill.template get_code_units<char_type>();
+    const auto fill_width = calculate_valid_text_width(fill_chars);
+    auto it = ranges::begin(range);
+    while (it != ranges::end(range)) {
+        auto [beg, cp_view] =
+            read_code_point_into(ranges::subrange{it, ranges::end(range)});
+        if (!ranges::equal(cp_view.view(), fill_chars)) {
+            return result_type{it, rem_width_start - rem_width};
+        }
+
+        rem_width -= fill_width;
+        if (rem_width <= 0) {
+            break;
+        }
+    }
+    return result_type{it, rem_width_start - rem_width};
+}
+
+template <typename Range>
+scan_expected<skip_fill_result<simple_borrowed_iterator_t<Range>>>
+skip_fill_before(Range&& range,
+                 int width,
+                 const detail::fill_type& fill,
+                 bool need_skipped_width)
+{
+    if (auto e = eof_check(range); SCN_UNLIKELY(!e)) {
+        return unexpected(make_eof_scan_error(e));
+    }
+
+    SCN_TRY(r, skip_fill_impl(SCN_FWD(range), width, width, fill,
+                              need_skipped_width || width != 0));
+    if (r.skipped_width >= width && width != 0) {
+        return unexpected_scan_error(scan_error::invalid_scanned_value,
+                                     "Too many fill characters before value");
+    }
+    return r;
+}
+
+template <typename Range>
+scan_expected<simple_borrowed_iterator_t<Range>> skip_left_fill_after(
+    Range&& range,
+    int spec_width,
+    int rem_width,
+    const detail::fill_type& fill)
+{
+    if (ranges::begin(range) == ranges::end(range)) {
+        return ranges::begin(range);
+    }
+
+    SCN_TRY(r,
+            skip_fill_impl(SCN_FWD(range), spec_width, rem_width, fill, false));
+    return r.iterator;
+}
+
+template <typename Range>
+scan_expected<simple_borrowed_iterator_t<Range>> skip_center_fill_after(
+    Range&& range,
+    int spec_width,
+    int before_width,
+    int rem_width,
+    const detail::fill_type& fill)
+{
+    if (auto e = eof_check(range); SCN_UNLIKELY(!e)) {
+        if (before_width == 0) {
+            return ranges::begin(range);
+        }
+        return unexpected(make_eof_scan_error(e));
+    }
+
+    using char_type = detail::char_t<Range>;
+    const auto fill_ch_width =
+        calculate_text_width(fill.template get_code_units<char_type>());
+
+    if (spec_width == 0) {
+        SCN_TRY(r, skip_fill_impl(SCN_FWD(range), 0,
+                                  before_width + fill_ch_width, fill, true));
+        if (r.skipped_width != before_width &&
+            r.skipped_width != before_width + fill_ch_width) {
+            return unexpected_scan_error(
+                scan_error::invalid_scanned_value,
+                "Wrong number of fill characters for center-aligned value");
+        }
+        return r.iterator;
+    }
+
+    SCN_TRY(r,
+            skip_fill_impl(SCN_FWD(range), spec_width, rem_width, fill, true));
+
+    const auto expected_total_padding_width = before_width + r.skipped_width;
+    const auto expected_total_padding_chars =
+        expected_total_padding_width / fill_ch_width;
+    const auto expected_fill_width_before =
+        expected_total_padding_chars / 2 * fill_ch_width;
+    const auto expected_fill_width_after =
+        ((expected_total_padding_chars / 2) +
+         (expected_total_padding_chars % 2 != 0)) *
+        fill_ch_width;
+    if (expected_fill_width_before != before_width ||
+        expected_fill_width_after != r.skipped_width) {
+        return unexpected_scan_error(
+            scan_error::invalid_scanned_value,
+            "Wrong number of fill characters for center-aligned value");
+    }
+    return r.iterator;
+}
+
 template <typename T, typename CharT>
 constexpr auto make_reader()
 {
@@ -202,19 +376,71 @@ struct arg_reader {
                                                   const Range& rng,
                                                   T& value)
     {
-        SCN_TRY(it,
-                skip_ws_before_if_required(rd.skip_ws_before_read(), rng, loc)
-                    .transform_error(make_eof_scan_error));
+        int before_align_width = 0;
+        auto it = ranges::begin(rng);
+        if (SCN_UNLIKELY(specs.align == detail::align_type::right ||
+                         specs.align == detail::align_type::center)) {
+            if (auto r =
+                    skip_fill_before(rng, specs.width, specs.fill,
+                                     specs.align == detail::align_type::center);
+                SCN_LIKELY(r)) {
+                it = r->iterator;
+                before_align_width = r->skipped_width;
+            }
+            else {
+                return unexpected(r.error());
+            }
+            if (SCN_UNLIKELY(it == ranges::end(rng))) {
+                return unexpected_scan_error(scan_error::end_of_range, "EOF");
+            }
+        }
+        else {
+            SCN_TRY_ASSIGN(it, skip_ws_before_if_required(
+                                   rd.skip_ws_before_read(), rng, loc)
+                                   .transform_error(make_eof_scan_error));
+        }
 
         auto subr = ranges::subrange{it, ranges::end(rng)};
 
         if (specs.width != 0) {
-            SCN_TRY(w_it, rd.read_specs(take_width(subr, specs.width), specs,
-                                        value, loc));
-            return w_it.base();
+            SCN_TRY(w_it,
+                    rd.read_specs(
+                        take_width(subr, specs.width - before_align_width),
+                        specs, value, loc));
+            it = w_it.base();
+        }
+        else {
+            SCN_TRY_ASSIGN(it, rd.read_specs(subr, specs, value, loc));
         }
 
-        return rd.read_specs(subr, specs, value, loc);
+        if (SCN_LIKELY(specs.align == detail::align_type::none ||
+                       specs.align == detail::align_type::right)) {
+            return it;
+        }
+
+        if (specs.width == 0) {
+            if (specs.align == detail::align_type::left) {
+                return skip_left_fill_after(
+                    ranges::subrange{it, ranges::end(rng)}, 0, 0, specs.fill);
+            }
+            return skip_center_fill_after(
+                ranges::subrange{it, ranges::end(rng)}, 0, before_align_width,
+                0, specs.fill);
+        }
+
+        const auto value_buf =
+            make_contiguous_buffer(ranges::subrange{subr.begin(), it});
+        const auto value_width = calculate_text_width(value_buf.view());
+        const auto remaining_width =
+            specs.width - before_align_width - value_width;
+        if (specs.align == detail::align_type::left) {
+            return skip_left_fill_after(ranges::subrange{it, ranges::end(rng)},
+                                        specs.width, remaining_width,
+                                        specs.fill);
+        }
+        return skip_center_fill_after(ranges::subrange{it, ranges::end(rng)},
+                                      specs.width, before_align_width,
+                                      remaining_width, specs.fill);
     }
 
     template <typename T>

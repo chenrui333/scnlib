@@ -580,10 +580,10 @@ void transcode_valid_to_string(std::basic_string_view<SourceCharT> source,
 }
 
 template <typename SourceCharT, typename DestCharT>
-void transcode_to_string(std::basic_string_view<SourceCharT> source,
-                         std::basic_string<DestCharT>& dest)
+void transcode_to_string_impl(std::basic_string_view<SourceCharT> source,
+                              std::basic_string<DestCharT>& dest)
 {
-    static_assert(!std::is_same_v<SourceCharT, DestCharT>);
+    static_assert(sizeof(SourceCharT) != sizeof(DestCharT));
 
     auto do_transcode = [&](std::basic_string_view<SourceCharT> src,
                             span<DestCharT> dst) {
@@ -658,6 +658,22 @@ void transcode_to_string(std::basic_string_view<SourceCharT> source,
             detail::make_string_view_from_iterators<SourceCharT>(it,
                                                                  source.end()));
         it = detail::make_string_view_iterator(source, tmp_it);
+    }
+}
+
+template <typename SourceCharT, typename DestCharT>
+void transcode_to_string(std::basic_string_view<SourceCharT> source,
+                         std::basic_string<DestCharT>& dest)
+{
+    static_assert(!std::is_same_v<SourceCharT, DestCharT>);
+
+    if constexpr (sizeof(SourceCharT) == sizeof(DestCharT)) {
+        dest.resize(source.size());
+        std::memcpy(dest.data(), source.data(),
+                    source.size() * sizeof(SourceCharT));
+    }
+    else {
+        return transcode_to_string_impl(source, dest);
     }
 }
 

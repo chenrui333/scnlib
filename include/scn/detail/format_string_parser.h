@@ -145,7 +145,7 @@ public:
     }
 
     template <typename CharT>
-    CharT get() const
+    CharT get_code_unit() const
     {
         SCN_EXPECT(m_size <= sizeof(CharT));
         CharT r{};
@@ -154,18 +154,7 @@ public:
     }
 
     template <typename CharT>
-    constexpr const CharT* data() const
-    {
-        if constexpr (std::is_same_v<CharT, char>) {
-            return m_data;
-        }
-        else {
-            return nullptr;
-        }
-    }
-
-    template <typename CharT>
-    std::basic_string_view<CharT> view() const
+    std::basic_string_view<CharT> get_code_units() const
     {
         return {reinterpret_cast<const CharT*>(m_data), m_size};
     }
